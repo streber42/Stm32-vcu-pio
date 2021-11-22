@@ -1,0 +1,982 @@
+diff --git a/.travis.yml b/.travis.yml
+index 376814fe..7323ee10 100644
+--- a/.travis.yml
++++ b/.travis.yml
+@@ -13,5 +13,5 @@ addons:
+ notifications:
+   irc:
+     channels:
+-      - "irc.libera.chat#libopencm3"
++      - "chat.freenode.net#libopencm3"
+     use_notice: true
+diff --git a/README.md b/README.md
+index cbb5c9c3..6fbfbf9c 100644
+--- a/README.md
++++ b/README.md
+@@ -191,7 +191,7 @@ Community
+ ---------
+ 
+  * Our [![Gitter channel](https://badges.gitter.im/libopencm3/discuss.svg)](https://gitter.im/libopencm3/discuss)
+- * Our IRC channel on the libera.chat IRC network is called #libopencm3
++ * Our IRC channel on the freenode IRC network is called #libopencm3
+ 
+ Mailing lists
+ -------------
+diff --git a/debian/changelog b/debian/changelog
+new file mode 100644
+index 00000000..dc7e2fb0
+--- /dev/null
++++ b/debian/changelog
+@@ -0,0 +1,12 @@
++libopencm3 (0.0~20130110+git20bfcaeb1-1) UNRELEASED; urgency=low
++
++  * Merged current upstream state
++    - started indicating upstream revision in debian version number
++
++ -- Christian M. Amsüss <chrysn@fsfe.org>  Thu, 10 Jan 2013 11:43:09 +0100
++
++libopencm3 (0) UNRELEASED; urgency=low
++
++  * First packaging attempt to see where it installs
++
++ -- Christian M. Amsüss <chrysn@fsfe.org>  Wed, 18 Apr 2012 11:20:37 +0200
+diff --git a/debian/compat b/debian/compat
+new file mode 100644
+index 00000000..ec635144
+--- /dev/null
++++ b/debian/compat
+@@ -0,0 +1 @@
++9
+diff --git a/debian/control b/debian/control
+new file mode 100644
+index 00000000..cbb79ce4
+--- /dev/null
++++ b/debian/control
+@@ -0,0 +1,21 @@
++Source: libopencm3
++Priority: optional
++Maintainer: Christian M. Amsüss <chrysn@fsfe.org>
++Build-Depends: debhelper (>= 9),
++               gcc-arm-none-eabi,
++               arm-none-eabi-libc,
++               binutils-multiarch,
++Standards-Version: 3.9.3
++Section: fixme
++Homepage: http://www.libopencm3.org/
++
++Package: libopencm3
++Section: fixme
++Architecture: all
++Depends: ${misc:Depends}
++Description: firmware library for ARM Cortex-M3 microcontrollers
++ The libopencm3 library provides the base code for running software without an
++ operating system on ARM Cortex-M3 microcontrollers, and contains both system
++ initialization routines and periphery implementation.
++ .
++ It supports the STM32, TX03, SAM3U and LPC1000 families of chips.
+diff --git a/debian/gbp.conf b/debian/gbp.conf
+new file mode 100644
+index 00000000..6f755243
+--- /dev/null
++++ b/debian/gbp.conf
+@@ -0,0 +1,6 @@
++[DEFAULT]
++debian-branch = debian
++
++# so far, this is configured to only build binary packages and not source
++# packages; without a release tarball and in the current stage of packaging,
++# that'd be unnecessary
+diff --git a/debian/rules b/debian/rules
+new file mode 100755
+index 00000000..7b1bfe27
+--- /dev/null
++++ b/debian/rules
+@@ -0,0 +1,21 @@
++#!/usr/bin/make -f
++
++# DH_VERBOSE=1
++
++%:
++	dh  $@
++
++# libopencm3's build system uses the variable PREFIX different from usual
++# build systems (usually, it'd be /usr; here, it is arm-none-eabi), and use
++# DESTDIR for what is usually ${DESTDIR}/${PREFIX}. there are no generated
++# files that get their paths hardcoded, so ${PREFIX} alone is not needed
++# anyway.
++LIBOPENCM3OPTS=DESTDIR=$(CURDIR)/debian/libopencm3/usr/
++
++override_dh_auto_build:
++	# we're not compiling in a debian sense -- and the normal flags make
++	# things break
++	CFLAGS= CPPFLAGS= LDFLAGS= $(MAKE) $(LIBOPENCM3OPTS)
++
++override_dh_auto_install:
++	$(MAKE) $(LIBOPENCM3OPTS) install
+diff --git a/debian/source/format b/debian/source/format
+new file mode 100644
+index 00000000..163aaf8d
+--- /dev/null
++++ b/debian/source/format
+@@ -0,0 +1 @@
++3.0 (quilt)
+diff --git a/debian/source/local-options b/debian/source/local-options
+new file mode 100644
+index 00000000..7423a2df
+--- /dev/null
++++ b/debian/source/local-options
+@@ -0,0 +1 @@
++single-debian-patch
+diff --git a/include/libopencm3/stm32/can.h b/include/libopencm3/stm32/can.h
+index 1855c15b..7983b84c 100644
+--- a/include/libopencm3/stm32/can.h
++++ b/include/libopencm3/stm32/can.h
+@@ -668,12 +668,13 @@ void can_disable_irq(uint32_t canport, uint32_t irq);
+ 
+ int can_transmit(uint32_t canport, uint32_t id, bool ext, bool rtr,
+ 		 uint8_t length, uint8_t *data);
+-void can_receive(uint32_t canport, uint8_t fifo, bool release, uint32_t *id,
++uint32_t can_receive(uint32_t canport, uint8_t fifo, bool release, uint32_t *id,
+ 		 bool *ext, bool *rtr, uint8_t *fmi, uint8_t *length,
+ 		 uint8_t *data, uint16_t *timestamp);
+ 
+ void can_fifo_release(uint32_t canport, uint8_t fifo);
+ bool can_available_mailbox(uint32_t canport);
++uint32_t can_fifo_pending(uint32_t canport, uint8_t fifo);
+ END_DECLS
+ 
+ /**@}*/
+diff --git a/include/libopencm3/stm32/common/adc_common_v1.h b/include/libopencm3/stm32/common/adc_common_v1.h
+index 29ff0d0b..6d0752fe 100644
+--- a/include/libopencm3/stm32/common/adc_common_v1.h
++++ b/include/libopencm3/stm32/common/adc_common_v1.h
+@@ -399,7 +399,7 @@ void adc_set_right_aligned(uint32_t adc);
+ bool adc_eoc(uint32_t adc);
+ bool adc_eoc_injected(uint32_t adc);
+ uint32_t adc_read_regular(uint32_t adc);
+-uint32_t adc_read_injected(uint32_t adc, uint8_t reg);
++int32_t adc_read_injected(uint32_t adc, uint8_t reg);
+ void adc_set_continuous_conversion_mode(uint32_t adc);
+ void adc_set_single_conversion_mode(uint32_t adc);
+ void adc_set_regular_sequence(uint32_t adc, uint8_t length, uint8_t channel[]);
+diff --git a/include/libopencm3/stm32/common/ltdc_common_f47.h b/include/libopencm3/stm32/common/ltdc_common_f47.h
+index 4ac58098..d938d6cc 100644
+--- a/include/libopencm3/stm32/common/ltdc_common_f47.h
++++ b/include/libopencm3/stm32/common/ltdc_common_f47.h
+@@ -109,15 +109,9 @@
+ #define LTDC_L1CLUTWR              LTDC_LxCLUTWR(LTDC_LAYER_1)
+ #define LTDC_L2CLUTWR              LTDC_LxCLUTWR(LTDC_LAYER_2)
+ 
+-/* LTDC layer base addresses (for API parameters) */
+-/** @defgroup ltdc_layer_num LTDC Layer Number
+-@ingroup STM32F4xx_ltdc_defines
+ 
+-@{*/
+ #define LTDC_LAYER_1 1
+ #define LTDC_LAYER_2 2
+-/**@}*/
+-
+ 
+ /* --- LTDC_SSCR values ---------------------------------------------------- */
+ 
+@@ -506,8 +500,7 @@ void ltdc_set_tft_sync_timings(
+ void ltdc_setup_windowing(
+ 		uint8_t  layer_number,
+ 		uint16_t h_back_porch,  uint16_t v_back_porch,
+-		uint16_t h_sync, uint16_t v_sync,
+-		uint16_t width,  uint16_t height
++		uint16_t active_width,  uint16_t active_height
+ );
+ 
+ 
+diff --git a/include/libopencm3/stm32/common/timer_common_all.h b/include/libopencm3/stm32/common/timer_common_all.h
+index 08939d90..dbe297b6 100644
+--- a/include/libopencm3/stm32/common/timer_common_all.h
++++ b/include/libopencm3/stm32/common/timer_common_all.h
+@@ -1217,6 +1217,7 @@ void timer_set_break_lock(uint32_t timer_peripheral, uint32_t lock);
+ void timer_set_deadtime(uint32_t timer_peripheral, uint32_t deadtime);
+ void timer_generate_event(uint32_t timer_peripheral, uint32_t event);
+ uint32_t timer_get_counter(uint32_t timer_peripheral);
++uint32_t timer_get_ic_value(uint32_t timer_peripheral, enum tim_ic_id ic_id);
+ void timer_set_counter(uint32_t timer_peripheral, uint32_t count);
+ 
+ void timer_ic_set_filter(uint32_t timer, enum tim_ic_id ic,
+diff --git a/include/libopencm3/stm32/dac.h b/include/libopencm3/stm32/dac.h
+index dacb7dfa..a3efb12e 100644
+--- a/include/libopencm3/stm32/dac.h
++++ b/include/libopencm3/stm32/dac.h
+@@ -36,8 +36,6 @@
+ #       include <libopencm3/stm32/l1/dac.h>
+ #elif defined(STM32L4)
+ #       include <libopencm3/stm32/l4/dac.h>
+-#elif defined(STM32G0)
+-#       include <libopencm3/stm32/g0/dac.h>
+ #elif defined(STM32G4)
+ #	include <libopencm3/stm32/g4/dac.h>
+ #elif defined(STM32H7)
+diff --git a/include/libopencm3/stm32/f1/flash.h b/include/libopencm3/stm32/f1/flash.h
+index d14df2ba..bb4318c4 100644
+--- a/include/libopencm3/stm32/f1/flash.h
++++ b/include/libopencm3/stm32/f1/flash.h
+@@ -113,6 +113,7 @@ void flash_lock_upper(void);
+ void flash_clear_pgerr_flag_upper(void);
+ void flash_clear_eop_flag_upper(void);
+ void flash_clear_wrprterr_flag_upper(void);
++uint32_t flash_get_page_size(void);
+ 
+ END_DECLS
+ 
+diff --git a/include/libopencm3/stm32/f1/gpio.h b/include/libopencm3/stm32/f1/gpio.h
+index 4e997e03..e8b42506 100644
+--- a/include/libopencm3/stm32/f1/gpio.h
++++ b/include/libopencm3/stm32/f1/gpio.h
+@@ -896,38 +896,40 @@ Line Devices only
+ /** The NADV is disconnected from its allocated pin */
+ #define AFIO_MAPR2_FSMC_NADV_DISCONNECT			(1 << 10)
+ 
+-/**  TIM14 CH1 remapping (Clear: PA7 vs Set: PF9 */
++/* TIM14_REMAP: */
++/**  TIM14 remapping */
+ #define AFIO_MAPR2_TIM14_REMAP			(1 << 9)
+ 
+-/**  TIM13 CH1 remapping (Clear: PA6 vs Set: PF8 */
++/* TIM13_REMAP: */
++/**  TIM13 remapping */
+ #define AFIO_MAPR2_TIM13_REMAP			(1 << 8)
+ 
+-/**  TIM11 CH1 remapping (Clear: PB7 vs Set: PF7 */
++/* TIM11_REMAP: */
++/**  TIM11 remapping */
+ #define AFIO_MAPR2_TIM11_REMAP			(1 << 7)
+ 
+-/**  TIM10 CH1 remapping (Clear: PB8 vs Set: PF6 */
++/* TIM10_REMAP: */
++/**  TIM10 remapping */
+ #define AFIO_MAPR2_TIM10_REMAP			(1 << 6)
+ 
+-/**  TIM9 Ch1/2 remapping (Clear: PA2,PA3 vs Set: PE5,PE6 */
++/* TIM9_REMAP: */
++/**  TIM9 remapping */
+ #define AFIO_MAPR2_TIM9_REMAP			(1 << 5)
+ 
+-/** TIM1_DMA channel remapping
+- * Clear: CH1->DMA1-ch2, CH2->DM1-ch3
+- * Set: CH1->DMA1-ch6, CH2->DMA1-ch6
+- */
++/** TIM1_DMA channel 1/2 remapping */
+ #define AFIO_MAPR2_TIM1_DMA_REMAP		(1 << 4)
+ 
+-/** CEC remapping (Clear: PB8 vs Set: PB10) */
++/** CEC remapping (PB8 vs PB10) */
+ #define AFIO_MAPR2_CEC_REMAP			(1 << 3)
+ 
+-/** TIM17 remapping (Clear: PB9 vs Set: PB7) */
++/** TIM17 remapping (PB9 vs PB7) */
+ #define AFIO_MAPR2_TIM17_REMAP			(1 << 2)
+ 
+-/** TIM16 remapping (Clear: PB8 vs Set: PA6) */
++/** TIM16 remapping (PB8 vs PB6) */
+ #define AFIO_MAPR2_TIM16_REMAP			(1 << 1)
+ 
+-/** TIM15 remapping (Clear: PA2, PA3 vs Set: PB14, PB15) */
+-#define AFIO_MAPR2_TIM15_REMAP			(1 << 0)
++/** TIM15 remapping channels 1/2 */
++#define AFIO_MAPR1_TIM16_REMAP			(1 << 0)
+ 
+ /**@}*/
+ 
+diff --git a/include/libopencm3/stm32/f4/pwr.h b/include/libopencm3/stm32/f4/pwr.h
+index d4b02593..63f1015f 100644
+--- a/include/libopencm3/stm32/f4/pwr.h
++++ b/include/libopencm3/stm32/f4/pwr.h
+@@ -40,38 +40,35 @@ LGPL License Terms @ref lgpl_license
+  * This file extends the common STM32 version with definitions only
+  * applicable to the STM32F4 series of devices.
+  */
+-/** @addtogroup pwr_defines
+- * @{*/
+ 
+ /* --- PWR_CR values ------------------------------------------------------- */
+ 
+-/** VOS: Regulator voltage scaling output selection */
++/* Bits [31:16]: Reserved */
++
++/* VOS: Regulator voltage scaling output selection */
+ #define PWR_CR_VOS_SHIFT			14
+ #define PWR_CR_VOS_MASK			0x3
+ 
+-/** ADCDC1: Masks extra flash accesses by prefetch (see AN4073) */
+-#define PWR_CR_ADCDC1			(1 << 13)
+-
+-/** MRLVDS/MRUDS: Main regulator Low Voltage / Under drive in Deep Sleep */
+-#define PWR_CR_MRLVDS			(1 << 11)
+-#define PWR_CR_MRUDS			PWR_CR_MRLVDS
++/* Bits [13:10]: Reserved */
+ 
+-/** LPLVDS/LPUDS: Low-power regulator Low Voltage / Under drive in Deep Sleep */
+-#define PWR_CR_LPLVDS			(1 << 10)
+-#define PWR_CR_LPUDS			PWR_CR_LPLVDS
+-
+-/** FPDS: Flash power down in stop mode */
++/* FPDS: Flash power down in stop mode */
+ #define PWR_CR_FPDS			(1 << 9)
+ 
+ /* --- PWR_CSR values ------------------------------------------------------ */
+ 
+-/** VOSRDY: Regulator voltage scaling output selection ready bit */
++/* Bits [31:15]: Reserved */
++
++/* VOSRDY: Regulator voltage scaling output selection ready bit */
+ #define PWR_CSR_VOSRDY			(1 << 14)
+ 
+-/** BRE: Backup regulator enable */
++/* Bits [13:10]: Reserved */
++
++/* BRE: Backup regulator enable */
+ #define PWR_CSR_BRE			(1 << 9)
+ 
+-/** BRR: Backup regulator ready */
++/* Bits [7:4]: Reserved */
++
++/* BRR: Backup regulator ready */
+ #define PWR_CSR_BRR			(1 << 3)
+ 
+ /* --- Function prototypes ------------------------------------------------- */
+@@ -88,6 +85,4 @@ void pwr_set_vos_scale(enum pwr_vos_scale scale);
+ 
+ END_DECLS
+ 
+-/**@}*/
+-
+ #endif
+diff --git a/include/libopencm3/stm32/f4/rcc.h b/include/libopencm3/stm32/f4/rcc.h
+index b2f6fb30..977cd38a 100644
+--- a/include/libopencm3/stm32/f4/rcc.h
++++ b/include/libopencm3/stm32/f4/rcc.h
+@@ -796,7 +796,6 @@ extern uint32_t rcc_apb2_frequency;
+ 
+ enum rcc_clock_3v3 {
+ 	RCC_CLOCK_3V3_84MHZ,
+-	RCC_CLOCK_3V3_96MHZ,
+ 	RCC_CLOCK_3V3_168MHZ,
+ 	RCC_CLOCK_3V3_180MHZ,
+ 	RCC_CLOCK_3V3_END
+diff --git a/include/libopencm3/stm32/fdcan.h b/include/libopencm3/stm32/fdcan.h
+index b724fbd2..8b68a163 100644
+--- a/include/libopencm3/stm32/fdcan.h
++++ b/include/libopencm3/stm32/fdcan.h
+@@ -78,9 +78,7 @@
+  * @param can_base FDCAN block base address @ref fdcan_block
+  * @param fifo_id ID of FIFO, 0 or 1
+  */
+-#define FDCAN_RXFIA(can_base, fifo_id)	\
+-	MMIO32(can_base + FDCAN_RXFIA_BASE + (FDCAN_RXFI_OFFSET * fifo_id))
+-
++#define FDCAN_RXFIA(can_base, fifo_id)	MMIO32(can_base + 0x0094 + (FDCAN_RXFI_OFFSET * fifo_id))
+ #define FDCAN_RXF0A(can_base)			FDCAN_RXFIA(can_base, 0)
+ #define FDCAN_RXF1A(can_base)			FDCAN_RXFIA(can_base, 1)
+ 
+@@ -725,30 +723,28 @@ struct fdcan_tx_buffer_element {
+ #define FDCAN_FIFO_RXTS_MASK			0xFFFF
+ 
+ 
+-/** @defgroup fdcan_error FDCAN error return values
+- * @{
++/** FDCAN error return values
+  */
++enum fdcan_error {
++	/** No error. Operation finished successfully */
++	FDCAN_E_OK,
+ 
+-/** No error. Operation finished successfully */
+-#define FDCAN_E_OK						0
+-
+-/** Value provided was out of range */
+-#define FDCAN_E_OUTOFRANGE				-1
++	/** Value provided was out of range */
++	FDCAN_E_OUTOFRANGE,
+ 
+-/** Timeout waiting for FDCAN block to accept INIT bit change */
+-#define FDCAN_E_TIMEOUT					-2
++	/** Timeout waiting for FDCAN block to accept INIT bit change */
++	FDCAN_E_TIMEOUT,
+ 
+-/** Value provided was invalid (FIFO index, FDCAN block base address, length, etc.) */
+-#define FDCAN_E_INVALID					-3
++	/** Value provided was invalid (FIFO index, FDCAN block base address, length, etc.) */
++	FDCAN_E_INVALID,
+ 
+-/** Device is busy: Transmit buffer is full, unable to queue additional message or device
+- * is outside of INIT mode and cannot perform desired operation. */
+-#define FDCAN_E_BUSY					-4
++	/** Device is busy: Transmit buffer is full, unable to queue additional message or device
++	 * is outside of INIT mode and cannot perform desired operation. */
++	FDCAN_E_BUSY,
+ 
+-/** Receive buffer is empty, unable to read any new message */
+-#define FDCAN_E_NOTAVAIL				-5
+-
+-/**@}*/
++	/** Receive buffer is empty, unable to read any new message */
++	FDCAN_E_NOTAVAIL
++};
+ 
+ /**@}*/
+ 
+diff --git a/include/libopencm3/stm32/g0/dac.h b/include/libopencm3/stm32/g0/dac.h
+deleted file mode 100644
+index 1726d4ad..00000000
+--- a/include/libopencm3/stm32/g0/dac.h
++++ /dev/null
+@@ -1,41 +0,0 @@
+-/** @defgroup dac_defines DAC Defines
+- *
+- * @brief <b>Defined Constants and Types for the STM32G0xx Digital-to-Analog Converter</b>
+- *
+- * @ingroup STM32G0xx_defines
+- *
+- * LGPL License Terms @ref lgpl_license
+- */
+-/*
+- * This file is part of the libopencm3 project.
+- *
+- * This library is free software: you can redistribute it and/or modify
+- * it under the terms of the GNU Lesser General Public License as published by
+- * the Free Software Foundation, either version 3 of the License, or
+- * (at your option) any later version.
+- *
+- * This library is distributed in the hope that it will be useful,
+- * but WITHOUT ANY WARRANTY; without even the implied warranty of
+- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+- * GNU Lesser General Public License for more details.
+- *
+- * You should have received a copy of the GNU Lesser General Public License
+- * along with this library.  If not, see <http://www.gnu.org/licenses/>.
+- */
+-
+-#ifndef LIBOPENCM3_DAC_H
+-#define LIBOPENCM3_DAC_H
+-
+-#include <libopencm3/stm32/common/dac_common_v1.h>
+-
+-/**@{*/
+-
+-/** @defgroup dac_reg_base DAC register base addresses
+-@{*/
+-#define DAC1				DAC_BASE
+-/**@}*/
+-
+-/**@}*/
+-
+-#endif
+-
+diff --git a/include/libopencm3/stm32/l4/memorymap.h b/include/libopencm3/stm32/l4/memorymap.h
+index c087e5b5..c2ac47e1 100644
+--- a/include/libopencm3/stm32/l4/memorymap.h
++++ b/include/libopencm3/stm32/l4/memorymap.h
+@@ -59,7 +59,6 @@
+ #define I2C3_BASE			(PERIPH_BASE_APB1 + 0x5c00)
+ #define CRS_BASE			(PERIPH_BASE_APB1 + 0x6000)
+ #define BX_CAN1_BASE			(PERIPH_BASE_APB1 + 0x6400)
+-#define BX_CAN2_BASE			(PERIPH_BASE_APB1 + 0x6800)
+ #define USB_DEV_FS_BASE			(PERIPH_BASE_APB1 + 0x6800)
+ #define USB_PMA_BASE			(PERIPH_BASE_APB1 + 0x6c00)
+ #define POWER_CONTROL_BASE		(PERIPH_BASE_APB1 + 0x7000)
+diff --git a/include/libopencm3/stm32/l4/rcc.h b/include/libopencm3/stm32/l4/rcc.h
+index a2bf7559..09edc71e 100644
+--- a/include/libopencm3/stm32/l4/rcc.h
++++ b/include/libopencm3/stm32/l4/rcc.h
+@@ -363,7 +363,6 @@ Twelve frequency ranges are available: 100 kHz, 200 kHz, 400 kHz, 800 kHz,
+ #define RCC_APB1RSTR1_OPAMPRST			(1 << 30)
+ #define RCC_APB1RSTR1_DAC1RST			(1 << 29)
+ #define RCC_APB1RSTR1_PWRRST			(1 << 28)
+-#define RCC_APB1RSTR1_CAN2RST			(1 << 26)
+ #define RCC_APB1RSTR1_CAN1RST			(1 << 25)
+ #define RCC_APB1RSTR1_I2C3RST			(1 << 23)
+ #define RCC_APB1RSTR1_I2C2RST			(1 << 22)
+@@ -467,7 +466,6 @@ Twelve frequency ranges are available: 100 kHz, 200 kHz, 400 kHz, 800 kHz,
+ #define RCC_APB1ENR1_OPAMPEN			(1 << 30)
+ #define RCC_APB1ENR1_DAC1EN			(1 << 29)
+ #define RCC_APB1ENR1_PWREN			(1 << 28)
+-#define RCC_APB1ENR1_CAN2EN			(1 << 26)
+ #define RCC_APB1ENR1_CAN1EN			(1 << 25)
+ #define RCC_APB1ENR1_I2C3EN			(1 << 23)
+ #define RCC_APB1ENR1_I2C2EN			(1 << 22)
+@@ -556,7 +554,6 @@ Twelve frequency ranges are available: 100 kHz, 200 kHz, 400 kHz, 800 kHz,
+ #define RCC_APB1SMENR1_OPAMPSMEN		(1 << 30)
+ #define RCC_APB1SMENR1_DAC1SMEN			(1 << 29)
+ #define RCC_APB1SMENR1_PWRSMEN			(1 << 28)
+-#define RCC_APB1SMENR1_CAN2SMEN			(1 << 26)
+ #define RCC_APB1SMENR1_CAN1SMEN			(1 << 25)
+ #define RCC_APB1SMENR1_I2C3SMEN			(1 << 23)
+ #define RCC_APB1SMENR1_I2C2SMEN			(1 << 22)
+@@ -781,7 +778,6 @@ enum rcc_periph_clken {
+ 	RCC_DAC1 = _REG_BIT(RCC_APB1ENR1_OFFSET, 29),
+ 	RCC_PWR = _REG_BIT(RCC_APB1ENR1_OFFSET, 28),
+ 	RCC_USB = _REG_BIT(RCC_APB1ENR1_OFFSET, 26),
+-	RCC_CAN2 = _REG_BIT(RCC_APB1ENR1_OFFSET, 26),
+ 	RCC_CAN1 = _REG_BIT(RCC_APB1ENR1_OFFSET, 25),
+ 	RCC_CRS = _REG_BIT(RCC_APB1ENR1_OFFSET, 24),
+ 	RCC_I2C3 = _REG_BIT(RCC_APB1ENR1_OFFSET, 23),
+@@ -853,7 +849,6 @@ enum rcc_periph_clken {
+ 	SCC_OPAMP = _REG_BIT(RCC_APB1ENR1_OFFSET, 30),
+ 	SCC_DAC1 = _REG_BIT(RCC_APB1ENR1_OFFSET, 29),
+ 	SCC_PWR = _REG_BIT(RCC_APB1ENR1_OFFSET, 28),
+-	SCC_CAN2 = _REG_BIT(RCC_APB1ENR1_OFFSET, 26),
+ 	SCC_CAN1 = _REG_BIT(RCC_APB1ENR1_OFFSET, 25),
+ 	SCC_I2C3 = _REG_BIT(RCC_APB1ENR1_OFFSET, 23),
+ 	SCC_I2C2 = _REG_BIT(RCC_APB1ENR1_OFFSET, 22),
+@@ -925,7 +920,6 @@ enum rcc_periph_rst {
+ 	RST_DAC1 = _REG_BIT(RCC_APB1RSTR1_OFFSET, 29),
+ 	RST_PWR = _REG_BIT(RCC_APB1RSTR1_OFFSET, 28),
+ 	RST_USB = _REG_BIT(RCC_APB1RSTR1_OFFSET, 26),
+-	RST_CAN2 = _REG_BIT(RCC_APB1RSTR1_OFFSET, 26),
+ 	RST_CAN1 = _REG_BIT(RCC_APB1RSTR1_OFFSET, 25),
+ 	RST_CRS = _REG_BIT(RCC_APB1RSTR1_OFFSET, 24),
+ 	RST_I2C3 = _REG_BIT(RCC_APB1RSTR1_OFFSET, 23),
+diff --git a/include/libopencm3/stm32/rtc.h b/include/libopencm3/stm32/rtc.h
+index 53118d3c..d6ab18a7 100644
+--- a/include/libopencm3/stm32/rtc.h
++++ b/include/libopencm3/stm32/rtc.h
+@@ -26,8 +26,6 @@
+ #       include <libopencm3/stm32/f1/rtc.h>
+ #elif defined(STM32F2)
+ #       include <libopencm3/stm32/f2/rtc.h>
+-#elif defined(STM32F3)
+-#       include <libopencm3/stm32/f3/rtc.h>
+ #elif defined(STM32F4)
+ #       include <libopencm3/stm32/f4/rtc.h>
+ #elif defined(STM32L0)
+diff --git a/ld/devices.data b/ld/devices.data
+index e9f04264..12c61fff 100644
+--- a/ld/devices.data
++++ b/ld/devices.data
+@@ -243,8 +243,6 @@ stm32w108cc stm32w ROM=256K RAM=16K
+ stm32g0[43]1?4* stm32g0 ROM=16K RAM=8K
+ stm32g0[43][01]?6* stm32g0 ROM=32K RAM=8K
+ stm32g0[43][01]?8* stm32g0 ROM=64K RAM=8K
+-stm32g0[56][01]?6* stm32g0 ROM=32K RAM=18K
+-stm32g0[56][01]?8* stm32g0 ROM=64K RAM=18K
+ stm32g0[78]1?8* stm32g0 ROM=64K RAM=36K
+ stm32g0[78][01]?b* stm32g0 ROM=128K RAM=36K
+ stm32g0[BC]1?c* stm32g0 ROM=256K RAM=128K
+@@ -286,17 +284,8 @@ sam3x4e* sam3xnfc ROM=256K RAM=32K RAM1=32K
+ sam3x8c* sam3x ROM=512K RAM=64K RAM1=32K
+ sam3x8e* sam3xnfc ROM=512K RAM=64K RAM1=32K
+ 
+-samd09?13* samd ROM=8K RAM=4K
+-samd09?14* samd ROM=16K RAM=4K
+-
+ samd10?13* samd ROM=8K RAM=4K
+-samd1[01]?14* samd ROM=16K RAM=4K
+-
+-samd2[01]?14* samd ROM=16K RAM=2K
+-samd2[01]?15* samd ROM=32K RAM=4K
+-samd2[01]?16* samd ROM=64K RAM=8K
+-samd2[01]?17* samd ROM=128K RAM=16K
+-samd2[01]?18* samd ROM=256K RAM=32K
++samd10?14* samd ROM=16K RAM=4K
+ 
+ ################################################################################
+ # the SAM4 chips
+diff --git a/lib/stm32/can.c b/lib/stm32/can.c
+index f404a4a7..9941e7a3 100644
+--- a/lib/stm32/can.c
++++ b/lib/stm32/can.c
+@@ -466,11 +466,15 @@ void can_fifo_release(uint32_t canport, uint8_t fifo)
+ @param[out] data Unsigned int8[]. Message payload data.
+ @param[out] timestamp Pointer to store the message timestamp.
+ 			Only valid on time triggered CAN. Use NULL to ignore.
++@returns int 0-3 depending on how many messages where pending before
++			releasing the FIFO.
++			when 0 is returned no message could be retrieved
+  */
+-void can_receive(uint32_t canport, uint8_t fifo, bool release, uint32_t *id,
++uint32_t can_receive(uint32_t canport, uint8_t fifo, bool release, uint32_t *id,
+ 		 bool *ext, bool *rtr, uint8_t *fmi, uint8_t *length,
+ 		 uint8_t *data, uint16_t *timestamp)
+ {
++	uint32_t pending_cnt = can_fifo_pending(canport, fifo);
+ 	uint32_t fifo_id = 0;
+ 	union {
+ 		uint8_t data8[4];
+@@ -542,9 +546,28 @@ void can_receive(uint32_t canport, uint8_t fifo, bool release, uint32_t *id,
+ 	if (release) {
+ 		can_fifo_release(canport, fifo);
+ 	}
++
++	return pending_cnt;
+ }
+ 
+ bool can_available_mailbox(uint32_t canport)
+ {
+ 	return CAN_TSR(canport) & (CAN_TSR_TME0 | CAN_TSR_TME1 | CAN_TSR_TME2);
+ }
++
++/*---------------------------------------------------------------------------*/
++/** @brief CAN get number of pending RX messages
++
++@param[in] canport Unsigned int32. CAN block register base @ref can_reg_base.
++@param[in] fifo Unsigned int8. FIFO id.
++@returns int 1, 2 or 3 if messages are pending in given fifo, 0 otherwise.
++ */
++uint32_t can_fifo_pending(uint32_t canport, uint8_t fifo)
++{
++	if (fifo == 0) {
++		return CAN_RF0R(canport) & CAN_RF0R_FMP0_MASK;
++	} else {
++		return CAN_RF1R(canport) & CAN_RF1R_FMP1_MASK;
++	}
++}
++
+diff --git a/lib/stm32/common/adc_common_v1.c b/lib/stm32/common/adc_common_v1.c
+index 227855d0..a3de79a4 100644
+--- a/lib/stm32/common/adc_common_v1.c
++++ b/lib/stm32/common/adc_common_v1.c
+@@ -477,20 +477,20 @@ adc_set_injected_offset.
+ 
+ @param[in] adc Unsigned int32. ADC block register address base @ref adc_reg_base
+ @param[in] reg Unsigned int8. Register number (1 ... 4).
+-@returns Unsigned int32 conversion result.
++@returns Signed int32 conversion result.
+ */
+ 
+-uint32_t adc_read_injected(uint32_t adc, uint8_t reg)
++int32_t adc_read_injected(uint32_t adc, uint8_t reg)
+ {
+ 	switch (reg) {
+ 	case 1:
+-		return ADC_JDR1(adc);
++		return (int16_t)ADC_JDR1(adc);
+ 	case 2:
+-		return ADC_JDR2(adc);
++		return (int16_t)ADC_JDR2(adc);
+ 	case 3:
+-		return ADC_JDR3(adc);
++		return (int16_t)ADC_JDR3(adc);
+ 	case 4:
+-		return ADC_JDR4(adc);
++		return (int16_t)ADC_JDR4(adc);
+ 	}
+ 	return 0;
+ }
+diff --git a/lib/stm32/common/fdcan_common.c b/lib/stm32/common/fdcan_common.c
+index be582e82..80245a0e 100644
+--- a/lib/stm32/common/fdcan_common.c
++++ b/lib/stm32/common/fdcan_common.c
+@@ -609,7 +609,7 @@ int fdcan_receive(uint32_t canport, uint8_t fifo_id, bool release, uint32_t *id,
+ 	}
+ 
+ 	if (release) {
+-		FDCAN_RXFIA(canport, fifo_id) = get_index << FDCAN_RXFIFO_AI_SHIFT;
++		FDCAN_RXFIA(canport, fifo_id) |= get_index << FDCAN_RXFIFO_AI_SHIFT;
+ 	}
+ 
+ 	return FDCAN_E_OK;
+diff --git a/lib/stm32/common/iwdg_common_all.c b/lib/stm32/common/iwdg_common_all.c
+index 84268ef9..44b3b9b3 100644
+--- a/lib/stm32/common/iwdg_common_all.c
++++ b/lib/stm32/common/iwdg_common_all.c
+@@ -108,9 +108,6 @@ void iwdg_set_period_ms(uint32_t period)
+ 	while (iwdg_reload_busy());
+ 	IWDG_KR = IWDG_KR_UNLOCK;
+ 	IWDG_RLR = count & COUNT_MASK;
+-	
+-	/* Refresh counter after configuration is complete */
+-	iwdg_reset();
+ }
+ 
+ /*---------------------------------------------------------------------------*/
+diff --git a/lib/stm32/common/ltdc_common_f47.c b/lib/stm32/common/ltdc_common_f47.c
+index 4ea9f216..3255f356 100644
+--- a/lib/stm32/common/ltdc_common_f47.c
++++ b/lib/stm32/common/ltdc_common_f47.c
+@@ -67,25 +67,20 @@ void ltdc_set_tft_sync_timings(uint16_t sync_width,    uint16_t sync_height,
+ 	LTDC_TWCR = (w << 16) | (h << 0);
+ }
+ 
+-/*---------------------------------------------------------------------------*/
+-/** @brief LTDC Windowing Setup
+-@param[in] layer_number unsigned int8. @ref ltdc_layer_num
+-@param[in] h_back_porch unsigned int16. Horizontal Back Porch
+-@param[in] v_back_porch unsigned int16. Vertical Back Porch
+-@param[in] h_sync unsigned int16. Horizontal Sync
+-@param[in] v_sync unsigned int16. Vertical Sync
+-@param[in] width unsigned int16. Width of the screen (e.g. LCD is 320x240, width
+-would be 320)
+-@param[in] height unsigned int16. Height of the screen (e.g. LCD is 320x240,
+-height would be 240)
+-*/
+-void ltdc_setup_windowing(uint8_t layer_number, uint16_t h_back_porch,
+-			uint16_t v_back_porch, uint16_t h_sync,
+-			uint16_t v_sync, uint16_t width, uint16_t height) {
+-	LTDC_LxWHPCR(layer_number) = (h_back_porch + width + h_sync - 1) << LTDC_LxWHPCR_WHSPPOS_SHIFT |
+-		(h_sync + h_back_porch) << LTDC_LxWHPCR_WHSTPOS_SHIFT;
+-	LTDC_LxWVPCR(layer_number) = (v_back_porch + height + v_sync - 1) << LTDC_LxWVPCR_WVSPPOS_SHIFT |
+-		(v_back_porch + v_sync) << LTDC_LxWVPCR_WVSTPOS_SHIFT;
++void ltdc_setup_windowing(uint8_t  layer_number,
++			  uint16_t h_back_porch, uint16_t v_back_porch,
++			  uint16_t active_width, uint16_t active_height)
++{
++	active_width  += h_back_porch - 1;
++	active_height += v_back_porch - 1;
++	/*assert((h_back_porch & 0xfff == h_back_porch) &&
++		 (v_back_porch  & 0xfff == v_back_porch) &&
++		 (active_width & 0xfff == active_width) &&
++		 (active_height & 0xfff == active_height));*/
++	LTDC_LxWHPCR(layer_number) = (active_width  << 16) |
++				     (h_back_porch << 0);
++	LTDC_LxWVPCR(layer_number) = (active_height << 16) |
++				     (v_back_porch << 0);
+ }
+ 
+ /**@}*/
+diff --git a/lib/stm32/common/timer_common_all.c b/lib/stm32/common/timer_common_all.c
+index 285f8bcf..f5d9d9fc 100644
+--- a/lib/stm32/common/timer_common_all.c
++++ b/lib/stm32/common/timer_common_all.c
+@@ -52,10 +52,10 @@ alternate function push-pull output where the PWM output will appear.
+ 	rcc_periph_clock_enable(RCC_GPIOA);
+ 
+ 	// for F1....
++	gpio_set_output_options(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO8);
++	// For anyone else
+ 	rcc_periph_clock_enable(RCC_AFIO);
+ 	gpio_set_mode(GPIOA, GPIO_MODE_OUTPUT_50_MHZ, GPIO_CNF_OUTPUT_ALTFN_PUSHPULL, GPIO8);
+-	// For anyone else
+-	gpio_set_output_options(GPIOA, GPIO_OTYPE_PP, GPIO_OSPEED_50MHZ, GPIO8);
+ 	// End of family specific
+ 
+ 	rcc_periph_clock_enable(RCC_TIM1);
+@@ -1628,6 +1628,38 @@ uint32_t timer_get_counter(uint32_t timer_peripheral)
+ 	return TIM_CNT(timer_peripheral);
+ }
+ 
++/*---------------------------------------------------------------------------*/
++/** @brief Timer Get Input Capture Value
++
++This is a convenience function to get the CCR register value
++
++@param[in] timer_peripheral Unsigned int32. Timer register address base @ref
++		tim_reg_base (TIM9 .. TIM14 not yet supported here).
++@param[in] ic_id enum ::tim_ic_id IC channel designators
++		TIM_ICx where x=1..4
++@returns Unsigned int32. Captured value.
++*/
++
++uint32_t timer_get_ic_value(uint32_t timer_peripheral, enum tim_ic_id ic_id)
++{
++	switch (ic_id) {
++	default:
++	case TIM_IC1:
++		return TIM_CCR1(timer_peripheral);
++		break;
++	case TIM_IC2:
++		return TIM_CCR2(timer_peripheral);
++		break;
++	case TIM_IC3:
++		return TIM_CCR3(timer_peripheral);
++		break;
++	case TIM_IC4:
++		return TIM_CCR4(timer_peripheral);
++		break;
++	}
++}
++
++
+ /*---------------------------------------------------------------------------*/
+ /** @brief Set Counter
+ 
+diff --git a/lib/stm32/f1/flash.c b/lib/stm32/f1/flash.c
+index feae6e0e..79d65a7e 100644
+--- a/lib/stm32/f1/flash.c
++++ b/lib/stm32/f1/flash.c
+@@ -299,5 +299,28 @@ void flash_erase_all_pages(void)
+ 	FLASH_CR2 &= ~FLASH_CR_MER;
+ }
+ 
++/** @brief Get size in bytes of one flash page
++*/
++uint32_t flash_get_page_size(void)
++{
++	uint32_t idcode = MMIO32(DBGMCU_BASE) & 0x7FF;
++	uint32_t page_size = 0;
++	
++	switch (idcode)
++	{
++		default: //Fall back to 1k
++		case 0x412:
++		case 0x410:
++			page_size = 1024;
++			break;
++		case 0x414:
++		case 0x418:
++		case 0x430:
++			page_size = 2048;
++			break;
++	}
++	
++	return page_size;
++}
+ /**@}*/
+ 
+diff --git a/lib/stm32/f4/rcc.c b/lib/stm32/f4/rcc.c
+index 99c77fa7..6b4da4ac 100644
+--- a/lib/stm32/f4/rcc.c
++++ b/lib/stm32/f4/rcc.c
+@@ -67,22 +67,6 @@ const struct rcc_clock_scale rcc_hsi_configs[RCC_CLOCK_3V3_END] = {
+ 		.apb1_frequency = 42000000,
+ 		.apb2_frequency = 84000000,
+ 	},
+-	{ /* 96MHz */
+-		.pllm = 8,
+-		.plln = 96,
+-		.pllp = 2,
+-		.pllq = 4,
+-		.pllr = 0,
+-		.pll_source = RCC_CFGR_PLLSRC_HSI_CLK,
+-		.hpre = RCC_CFGR_HPRE_DIV_NONE,
+-		.ppre1 = RCC_CFGR_PPRE_DIV_2,
+-		.ppre2 = RCC_CFGR_PPRE_DIV_NONE,
+-		.voltage_scale = PWR_SCALE1,
+-		.flash_config = FLASH_ACR_DCEN | FLASH_ACR_ICEN | FLASH_ACR_LATENCY_3WS,
+-		.ahb_frequency  = 96000000,
+-		.apb1_frequency = 48000000,
+-		.apb2_frequency = 96000000
+-	},	
+ 	{ /* 168MHz */
+ 		.pllm = 16,
+ 		.plln = 336,
+@@ -137,22 +121,6 @@ const struct rcc_clock_scale rcc_hse_8mhz_3v3[RCC_CLOCK_3V3_END] = {
+ 		.apb1_frequency = 42000000,
+ 		.apb2_frequency = 84000000,
+ 	},
+-	{ /* 96MHz */
+-		.pllm = 4,
+-		.plln = 96,
+-		.pllp = 2,
+-		.pllq = 4,
+-		.pllr = 0,
+-		.pll_source = RCC_CFGR_PLLSRC_HSE_CLK,
+-		.hpre = RCC_CFGR_HPRE_DIV_NONE,
+-		.ppre1 = RCC_CFGR_PPRE_DIV_2,
+-		.ppre2 = RCC_CFGR_PPRE_DIV_NONE,
+-		.voltage_scale = PWR_SCALE1,
+-		.flash_config = FLASH_ACR_DCEN | FLASH_ACR_ICEN | FLASH_ACR_LATENCY_3WS,
+-		.ahb_frequency  = 96000000,
+-		.apb1_frequency = 48000000,
+-		.apb2_frequency = 96000000
+-	},	
+ 	{ /* 168MHz */
+ 		.pllm = 8,
+ 		.plln = 336,
+@@ -207,22 +175,6 @@ const struct rcc_clock_scale rcc_hse_12mhz_3v3[RCC_CLOCK_3V3_END] = {
+ 		.apb1_frequency = 42000000,
+ 		.apb2_frequency = 84000000,
+ 	},
+-	{ /* 96MHz */
+-		.pllm = 6,
+-		.plln = 96,
+-		.pllp = 2,
+-		.pllq = 4,
+-		.pllr = 0,
+-		.pll_source = RCC_CFGR_PLLSRC_HSE_CLK,
+-		.hpre = RCC_CFGR_HPRE_DIV_NONE,
+-		.ppre1 = RCC_CFGR_PPRE_DIV_2,
+-		.ppre2 = RCC_CFGR_PPRE_DIV_NONE,
+-		.voltage_scale = PWR_SCALE1,
+-		.flash_config = FLASH_ACR_DCEN | FLASH_ACR_ICEN | FLASH_ACR_LATENCY_3WS,
+-		.ahb_frequency  = 96000000,
+-		.apb1_frequency = 48000000,
+-		.apb2_frequency = 96000000
+-	},	
+ 	{ /* 168MHz */
+ 		.pllm = 12,
+ 		.plln = 336,
+@@ -277,22 +229,6 @@ const struct rcc_clock_scale rcc_hse_16mhz_3v3[RCC_CLOCK_3V3_END] = {
+ 		.apb1_frequency = 42000000,
+ 		.apb2_frequency = 84000000,
+ 	},
+-	{ /* 96MHz */
+-		.pllm = 8,
+-		.plln = 96,
+-		.pllp = 2,
+-		.pllq = 4,
+-		.pllr = 0,
+-		.pll_source = RCC_CFGR_PLLSRC_HSE_CLK,
+-		.hpre = RCC_CFGR_HPRE_DIV_NONE,
+-		.ppre1 = RCC_CFGR_PPRE_DIV_2,
+-		.ppre2 = RCC_CFGR_PPRE_DIV_NONE,
+-		.voltage_scale = PWR_SCALE1,
+-		.flash_config = FLASH_ACR_DCEN | FLASH_ACR_ICEN | FLASH_ACR_LATENCY_3WS,
+-		.ahb_frequency  = 96000000,
+-		.apb1_frequency = 48000000,
+-		.apb2_frequency = 96000000
+-	},	
+ 	{ /* 168MHz */
+ 		.pllm = 16,
+ 		.plln = 336,
+@@ -347,22 +283,6 @@ const struct rcc_clock_scale rcc_hse_25mhz_3v3[RCC_CLOCK_3V3_END] = {
+ 		.apb1_frequency = 42000000,
+ 		.apb2_frequency = 84000000,
+ 	},
+-	{ /* 96MHz */
+-		.pllm = 25,
+-		.plln = 192,
+-		.pllp = 2,
+-		.pllq = 4,
+-		.pllr = 0,
+-		.pll_source = RCC_CFGR_PLLSRC_HSE_CLK,
+-		.hpre = RCC_CFGR_HPRE_DIV_NONE,
+-		.ppre1 = RCC_CFGR_PPRE_DIV_2,
+-		.ppre2 = RCC_CFGR_PPRE_DIV_NONE,
+-		.voltage_scale = PWR_SCALE1,
+-		.flash_config = FLASH_ACR_DCEN | FLASH_ACR_ICEN | FLASH_ACR_LATENCY_3WS,
+-		.ahb_frequency  = 96000000,
+-		.apb1_frequency = 48000000,
+-		.apb2_frequency = 96000000
+-	},	
+ 	{ /* 168MHz */
+ 		.pllm = 25,
+ 		.plln = 336,
+diff --git a/lib/stm32/g0/Makefile b/lib/stm32/g0/Makefile
+index 710f379c..b302aeea 100644
+--- a/lib/stm32/g0/Makefile
++++ b/lib/stm32/g0/Makefile
+@@ -35,7 +35,6 @@ TGT_CFLAGS	+= $(STANDARD_FLAGS)
+ ARFLAGS		= rcs
+ OBJS += adc.o adc_common_v2.o
+ OBJS += crc_common_all.o
+-OBJS += dac_common_all.o dac_common_v1.o
+ OBJS += desig_common_all.o desig_common_v1.o
+ OBJS += dma_common_l1f013.o
+ OBJS += dmamux.o
+diff --git a/lib/stm32/h7/fdcan.c b/lib/stm32/h7/fdcan.c
+index eb428777..d9a24cc4 100644
+--- a/lib/stm32/h7/fdcan.c
++++ b/lib/stm32/h7/fdcan.c
+@@ -79,7 +79,7 @@ unsigned fdcan_get_fifo_element_size(uint32_t canport, unsigned fifo_id)
+ 	}
+ 
+ 	/* Mask is unshifted and at this point, element_size is unshifted too */
+-	return 8 + fdcan_dlc_to_length((element_size & FDCAN_RXESC_F0DS_MASK) | 0x8);
++	return 8 + fdcan_dlc_to_length((element_size & FDCAN_RXESC_F0DS_MASK) | 0x7);
+ }
+ 
+ /** Returns actual size of transmit entry in transmit queue/FIFO for given CAN port.
+@@ -95,7 +95,7 @@ unsigned fdcan_get_txbuf_element_size(uint32_t canport)
+ {
+ 	unsigned element_size;
+ 	element_size = (FDCAN_TXESC(canport) >> FDCAN_TXESC_TBDS_SHIFT) & FDCAN_TXESC_TBDS_MASK;
+-	return 8 + fdcan_dlc_to_length((element_size & FDCAN_TXESC_TBDS_MASK) | 0x8);
++	return 8 + fdcan_dlc_to_length((element_size & FDCAN_TXESC_TBDS_MASK) | 0x7);
+ }
+ 
+ /** Initialize allocation of standard filter block in CAN message RAM.
+@@ -468,4 +468,4 @@ void fdcan_set_fifo_locked_mode(uint32_t canport, bool locked)
+ 	}
+ }
+ 
+-/**@}*/
++/**@}*/
+\ No newline at end of file
