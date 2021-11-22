@@ -1,0 +1,3 @@
+[submodule "src/Stm32-vcu"]
+	path = src/Stm32-vcu
+	url = https://github.com/streber42/Stm32-vcu.git
